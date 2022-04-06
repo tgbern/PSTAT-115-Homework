@@ -1,0 +1,332 @@
+---
+title: "Homework 1"
+author: "Tanner Berney, PSTAT 115, Fall 2021"
+date: "__Due on Sunday, October 10, 2021 at 11:59 pm__"
+output: pdf_document
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(testthat)
+library(tidyverse)
+library(patchwork)
+eval <- TRUE
+knitr::opts_chunk$set(echo=TRUE, 
+                      cache=FALSE, 
+                      fig.width=5, 
+                      fig.height=5,
+                      fig.align='center', 
+                      eval=eval)
+indent1 = '    '
+indent2 = paste(rep(indent1, 2), collapse='')
+indent3 = paste(rep(indent1, 3), collapse='')
+r = function(x, digits=2){ round(x, digits=digits) }
+
+```
+
+__Note:__ If you are working with a partner, please submit only one homework per group with both names.  Submit your Rmarkdown (.Rmd) and the compiled pdf on GrauchoSpace in a zip file.  Include any addition files (e.g. scanned handwritten solutions) in zip file with the pdf. 
+ 
+# Text Analysis of JK Rowling's Harry Potter Series
+
+# Question 1
+You are interested in studying the writing style and tone used by JK Rowling (JKR for short), the author of the popular Harry Potter series.  You select a random sample of chapters of size $n$ from all of JKR's books.  You are interested in the rate at which JKR uses the word _dark_ in her writing, so you count how many times the word _dark_ appears in each chapter in your sample, $(y_1,...,y_n)$. In this set-up, $y_i$ is the  number of times the word _dark_ appeared in the $i$-th randomly sampled chapter. In this context, the population of interest is all chapters written by JRK and the population quantity of interest (the estimand) is the rate at which JKR uses the word _dark_. The sampling units are individual chapters. Note: this assignment is partially based on text analysis package known as [tidytext](https://www.tidytextmining.com/tidytext.html]).  You can read more about tidytext [here](https://uc-r.github.io/tidy_text).  
+
+
+
+## 1a.
+Model: let $Y_i$ denote the quantity that captures the number of times the word _dark_ appears in   the $i$-th chapter.  As a first approximation, it is reasonable to model the number of times _dark_ appears in a given chapter using a  Poisson distribution. _Reminder:_ Poisson distributions are for integer outcomes and useful for events that occur independently and at a constant rate.  Let's assume that the quantities $Y_1,...Y_n$ are independent and identically distributed (IID) according to a Poisson distribution with unknown parameter $\lambda$,
+        $$p(Y_i=y_i\mid\lambda) = \hbox{Poisson} (y_i \mid\lambda) \quad \hbox{ for } \quad     i=1,...,n.$$
+
+Write the likelihood $L(\lambda)$ for a generic sample of $n$ chapters, $(y_1,...,y_n)$. Simplify as much as possible (i.e. get rid of any multiplicative constants)  
+
+Likelihood: $L(\lambda)=\prod_{i=1}^n\frac{e^{-\lambda}\lambda^{y_i}}{y_i!}$
+            $=\prod_{i=1}^ne^{-\lambda}\frac{1}{y_i!}\lambda^{y_i}$
+            $=\lambda^{\sum y_i}e^{-\lambda n}$
+    
+## 1b. 
+
+Write the log-likelihood $\ell(\lambda)$ for a generic sample of $n$ articles, $(y_1,...,y_n)$.  Simplify as much as possible.  Use this to compute the maximum likelihood estimate for the rate parameter of the Poisson distribution.    
+    
+
+Log-likelihood: $\ell(\lambda) = \ln(\lambda^{\sum y_i}e^{-\lambda n})$
+                $=\ln(e^{-\lambda n})+\ln(\lambda^{\sum y_i})$
+                $=-n\lambda+\ln(\lambda)\sum_{i=1}^ny_i$
+                
+MLE: $\hat{\lambda}=\frac{d}{d\lambda}(-n\lambda+\ln(\lambda)\sum_{i=1}^ny_i)$
+     $=-n+\frac{1}{\lambda}\sum_{i=1}^ny_i$
+
+set equal to zero and solve:
+$-n+\frac{1}{\lambda}\sum_{i=1}^ny_i=0 =>$
+$\hat{\lambda}_{MLE} = \frac{1}{n}\sum_{i=1}^ny_i$
+     
+
+From now on, we'll focus on JKR's writing style in the last Harry Potter book, _The Deathly Hallows_.  This book has 37 chapters. Below is the code for counting the number of times _dark_ appears in each chapter of _The Deathly Hallows_ .  We use the `tidytext` R package which includes functions that parse large text files into word counts.  The code below creates a vector of length 37 which has the number of times the word _dark_ was used in that chapter (see https://uc-r.github.io/tidy_text for more on parsing text with `tidytext`)
+    
+```{r parse_text}
+library(tidyverse)      # data manipulation & plotting
+library(stringr)        # text cleaning and regular expressions
+library(tidytext)       # provides additional text mining functions
+library(harrypotter)    # text for the seven novels of the Harry Potter series
+
+text_tb <- tibble(chapter = seq_along(deathly_hallows),
+                  text = deathly_hallows)
+tokens <- text_tb %>% unnest_tokens(word, text)
+word_counts <- tokens %>% group_by(chapter) %>% 
+  count(word, sort = TRUE) %>% ungroup
+word_counts_mat <- word_counts %>% spread(key=word, value=n, fill=0)
+
+dark_counts <- word_counts_mat$dark
+
+text_tb <- tibble(chapter = seq_along(deathly_hallows),
+                  text = deathly_hallows)
+tokens <- text_tb %>% unnest_tokens(word, text)
+word_counts <- tokens %>% group_by(chapter) %>% 
+  count(word, sort = TRUE) %>% ungroup
+word_counts_mat <- word_counts %>% spread(key=word, value=n, fill=0)
+```
+
+## 1c.
+
+Make a bar plot where the heights are the counts of the word _dark_ and the x-axis is the chapter.  
+
+```{r, dependson="parse_text", out.width="50%"}
+barplot(dark_counts,xlab="Chapter",ylab="Counts of Word 'dark'",names.arg=1:37,space=0,col="red")
+```
+
+
+
+## 1d.
+Plot the log-likelihood of the Poisson rate of _dark_ usage in R using the data in `dark_counts`.  Then use `dark_counts` to compute the maximum likelihood estimate of the rate of the usage of the word _dark_ in The Deathly Hallows.  Mark this maximum on the log-likelihood plot with a vertical line (use `abline` if you make the plot in base R or `geom_vline` if you prefer `ggplot`).  
+
+```{r}
+set.seed(100)
+n <- 37
+L <- function(lambda){-n*lambda+log(lambda)*sum(dark_counts)
+}
+p <- ggplot(data = data.frame(lambda = mean(dark_counts)), mapping = aes(x=lambda))+stat_function(fun = L)+
+xlim(0,100)+scale_y_continuous(name = "Likelihood") 
+p 
+p+geom_vline(xintercept = mean(dark_counts), color = 'red') 
+```
+
+
+# Question 2
+
+For the previous problem, when computing the rate of _dark_ usage, we were implicitly assuming each chapter had the same length.  Remember that for $Y_i \sim \text{Poisson}(\lambda)$, $E[Y_i] = \lambda$ for each chapter, that is, the average number of occurrences of _dark_ is the same in each chapter.  Obviously this isn't a great assumption, since the lengths of the chapters vary; longer chapters should be more likely to have more occurrences of the word.  We can augment the model by considering properties of the Poisson distribution.  The Poisson is often used to express the probability of a given number of events occurring for a fixed ``exposure''.  As a useful example of the role of the exposure term, when counting then number of events that happen in a set length of time, we to need to account for the total time that we are observing events.  For this text example, the exposure is not time, but rather corresponds to the total length of the chapter.  
+
+We will again let $(y_1,...,y_n)$ represent counts of the word _dark_. In addition, we now count the total number of words in each each chapter $(\nu_1,...,\nu_n)$ and use this as our exposure.  Let $Y_i$ denote the random variable for the counts of the word _dark_ in a chapter with $\nu_i$ words.  Let's assume that the quantities $Y_1,...Y_n$ are independent and identically distributed (IID) according to a Poisson distribution with unknown parameter $\lambda \cdot \frac{\nu_i}{1000}$,
+$$
+ p(Yi=y_i\mid \nu_i, 1000) = \hbox{Poisson} (y_i \mid\lambda \cdot \frac{\nu_i}{1000}) \quad \hbox{ for } \quad i=1,...,n.
+$$
+
+In the code below, `chapter_lengths` is a vector storing the length of each chapter in words.  
+
+```{r chapter_lengths, dependson="parse_text", out.width="50%"}
+chapter_lengths <- word_counts %>% group_by(chapter) %>% 
+summarize(chapter_length = sum(n)) %>% 
+ungroup %>% select(chapter_length) %>% unlist %>% as.numeric
+```
+
+
+## 2a.
+
+What is the interpretation of the quantity $\frac{\nu_i}{1000}$ in this model?  What is the interpretation of $\lambda$ in this model? State the units for these quantities in both of your answers.
+
+$\frac{\nu_i}{1000}$ represents how many words are in a chapter, those chapters with more words will increase the value for $\lambda$. Having a chapter with 10000 words would increase $\lambda$ by a multiplicative change of 10. $\lambda$ is the average number of occurrences the word "dark" appears, so having more words in a chapter will increase the average number of occurrences that the word "dark" appears. 
+
+## 2b.
+
+List the known and unknown variables and constants, as described in lecture 2.  Make sure your include $Y_1, ..., Y_n$, $y_1, ..., y_n$, $n$, $\lambda$, and $\nu_i$.
+
+
+Known, Var $> 0$: $Y_1, ..., Y_n$, 
+
+Known, Var $= 0$: $y_1, ..., y_n$, $n$, $\nu_i$
+
+Unknown, Var $> 0$:
+
+Unknown, Var $= 0$: $\lambda$
+
+
+
+## 2c.
+
+Write down the likelihood in this new model.  Use this to calculate maximum likelihood estimator for $\lambda$.  Your answer should include the $\nu_i$'s.  
+
+likelihood: $L(\lambda \cdot \frac{\nu_i}{1000}) = \prod_{i=1}^n\frac{(\lambda\frac{v_i}{1000})^{yi}e^{-\lambda\frac{v_i}{1000}}}{y_i!}$
+$= \prod_{i=1}^n\frac{\lambda^{y_i}\frac{v_i}{1000}^{yi}e^{-\lambda\frac{v_i}{1000}}}{y_i!}$
+$=\frac{\lambda^{\sum y_i}e^{\frac{-\lambda}{1000}\sum v_i}\prod_{i=1}^n(\frac{v_i}{1000})^{y_i}}{\prod_{i=1}^ny_i!}$
+
+log-likelihood: $\ell(\lambda \cdot \frac{\nu_i}{1000})= \sum y_i\ln(\lambda)-\frac{\lambda}{1000}\sum v_i+\sum y_i\ln(v_i)-\sum\ln(y_i!)$
+$\hat{\lambda}\frac{d}{d\lambda}= \frac{\sum y_i}{\lambda}-\frac{\sum v_i}{1000}$
+
+set equal to zero and solve:
+
+$\frac{\sum y_i}{\lambda}-\frac{\sum v_i}{1000}=0$
+$\frac{\sum y_i}{\lambda}=\frac{\sum v_i}{1000}$
+
+
+$\hat{\lambda}_{MLE}=\frac{\sum y_i}{\sum v_i}1000$
+
+## 2d.
+
+Compute the maximum likelihood estimate and save it in the variable `lambda_mle`. In 1-2 sentences interpret its meaning (make sure you include units in your answers!).  
+
+```{r}
+lambda_mle <- (sum(dark_counts)/sum(chapter_lengths))*1000
+```
+
+
+lambda_mle is the probability that the word "dark" is found in certain chapters. After calculating I found that .965 is the weight used for each chapter to see how many times "dark" is written.  
+
+## 2e.
+
+Plot the log-likelihood from the previous question in R using the data from on the frequency of _dark_ and the chapter lengths.  Add a vertical line at the value of `lambda_mle` to indicate the maximum likelihood.
+
+```{r}
+set.seed(100)
+n <- 37
+L <- function(lambda){sum(dark_counts)/lambda - sum(chapter_lengths)/1000
+}
+p <- ggplot(data = data.frame(lambda = lambda_mle), mapping = aes(x=lambda))+stat_function(fun = L)+
+xlim(0,100)+scale_y_continuous(name = "Likelihood") 
+p 
+p+geom_vline(xintercept = lambda_mle, color = 'red')
+```
+
+
+# Question 3
+Correcting for chapter lengths is clearly an improvement, but we're still assuming that JKR uses the word _dark_ at the same rate in all chapters.    In this problem we'll explore this assumption in more detail.
+
+
+## 3a.
+Why might it be unreasonable to assume that the rate of _dark_ usage is the same in all chapters? Comment in a few sentences.
+
+It is unreasonable since the chapters may be very different from one another. For example, one chapter could be about a part in the story where things are going good, so the word "dark" would not likely come up much. However, if there is a chapter in a dark setting or characters in the chapter that can be described as "dark" evil type people, those chapters are more likely to have the word dark be used more.
+
+
+## 3b.
+We can use simulation to check our Poisson model, and in particular the assumption that the rate of _dark_ usage is the same in all chapters.  Generate simulated counts of the word _dark_ by sampling counts from a Poisson distribution with the rate $(\hat \lambda_{\text{MLE}} \nu_i) /1000$ for each chapter $i$. $\hat \lambda_{\text{MLE}}$ is the maximum likelihood estimate computing in 2d.  Store the vector of these values for each chapter in a variable of length 37 called `lambda_chapter`.  Make a side by side plot of the observed counts and simulated counts and note any similarities or differences (we've already created the observed histogram for you).  Are there any outliers in the observed data that don't seem to be reflected in the data simulated under our model?  
+
+```{r, eval=T}
+# REMINDER: SET eval=TRUE when starting this problem
+observed_histogram <- ggplot(word_counts_mat) + geom_histogram(aes(x=dark)) + 
+  xlim(c(0, 25)) + ylim(c(0,10)) + ggtitle("Observed")
+
+
+lambda_chapter <- (lambda_mle*chapter_lengths)/1000
+
+simulated_counts <- tibble(dark = rpois(37, lambda_chapter))
+
+simulated_histogram <- ggplot(simulated_counts) + geom_histogram(aes(x=dark)) + 
+  xlim(c(0, 25)) + ylim(c(0,10)) + ggtitle("Simulated")
+
+## This uses the patchwork library to put the two plots side by side
+observed_histogram + simulated_histogram
+
+```
+
+<!-- ```{r} -->
+<!-- . = ottr::check("tests/q3b.R") -->
+<!-- ``` -->
+
+Looking at the two histograms, it is clear to see the observed data has an outlier near 23, where as in the simulated we have no outliers. The simulated data is put together more closely, where as the observed is more spread out, not by much though.
+
+## 3c. Assume the word usage rate varies by chapter, that is, 
+$$
+p(Yi=y_i\mid \lambda, \nu_i, 1000) = \hbox{Poisson} (y_i \mid\lambda_i \cdot \frac{\nu_i}{1000}) \quad \hbox{ for } \quad i=1,...,n.
+$$
+
+
+Compute a separate maximum likelihood estimate of the rate of _dark_ usage (per 1000 words) in each chapter, $\hat \lambda_i$.  Make a bar plot of $\hat \lambda_i$ by chapter. Save the chapter-specific MLE in a vector of length 37 called `lambda_hats`.  Which chapter has the highest rate of usage of the word dark? Save the chapter number in a variable called `darkest_chapter`.
+
+
+```{r, dependson="chapter_lengths"}
+set.seed(500)
+# Maximum likelihood estimate
+lambda_hats <- c()
+for(i in 1:37){
+  lambda_hats[i] = (sum(dark_counts[i])/sum(chapter_lengths[i]))*1000
+}
+darkest_chapter <- which.max(lambda_hats)
+
+# Make a bar plot of the MLEs, lambda_hats
+barplot(lambda_hats,xlab="Chapter",ylab="lambda_hats",names.arg=1:37,space=0,col="blue")
+```
+
+<!-- ```{r} -->
+<!-- . = ottr::check("tests/q3c.R") -->
+<!-- ``` -->
+
+
+# Question 4
+
+Let's go back to our original model for usage rates of the word _dark_.  You collect a random sample of book chapters penned by JKR and count how many times she uses the word _dark_ in each of the chapter in your sample, $(y_1,...,y_n)$.  In this set-up, $y_i$ is the  number of times the word _dark_ appeared in the $i$-th chapter, as before.  However, we will no longer assume that the rate of use of the word _dark_ is the same in every chapter.  Rather, we'll assume JKR uses the word _dark_ at different rates $\lambda_i$ in each chapter.   Naturally, this makes sense, since different chapters have different themes and tone.  To do this, we'll further assume that the rate of word usage $\lambda_i$ itself, is distributed according to a Gamma($\alpha$, $\beta$) with known parameters $\alpha$ and $\beta$,
+  $$
+   f(\Lambda=\lambda_i\mid \alpha,\beta) = \hbox{Gamma} (\lambda_i \mid\alpha,\beta).
+  $$
+and that $Y_i \sim \text{Pois}(\lambda_i)$ as in problem 1.  For now we will ignore any exposure parameters, $\nu_i$.  Note: this is a "warm up" to Bayesian inference, where it is standard to treat parameters as random variables and specify distributions for those parameters.  
+
+## 4a.
+
+Write out the the data generating process for the above model. 
+
+for(i in 1:n){
+- generate $\lambda_i$ from gam($\alpha$,$\beta$)
+- generate $y_i$ from pois($\lambda_i$)
+return $y_1, ...,y_n$
+
+}
+
+## 4b. 
+
+In R simulate 1000 values from the above data generating process, assume $\alpha=10$ (shape parameter of `rgamma`) and $\beta=1$ (rate parameter of `rgamma`).  Store the value in a vector of length 1000 called `counts`.  Compute the empirical mean and variance of values you generated.  For a Poisson distribution, the mean and the variance are the same.  In the following distribution is the variance greater than the mean (called ``overdispsersed'') or is the variance less than the mean (``underdispersed'')? Intuitively, why does this make sense?
+
+
+```{r, eval=T,warning=F}
+# REMINDER: SET eval=TRUE when starting this problem
+## Store simulated data in a vector of length 1000
+set.seed(100)
+counts <- c()
+for(i in 1:1000){
+  lambda_i <-rgamma(37,shape=c(10,1))
+  y_i <- rpois(37,lambda_i)
+  counts[i] <- y_i
+}
+print(mean(counts))
+print(var(counts))
+
+```
+
+<!-- ```{r} -->
+<!-- . = ottr::check("tests/q4b.R") -->
+<!-- ``` -->
+
+The variance is greater than the mean in this simulation so it is overdispersed. This makes sense as the variance between the chapters should be larger with the amount of times "dark" is used, while the mean would remain less.
+
+## 4c.
+
+List the known and unknown variables and constants as described in lecture 2.  Make sure your table includes $Y_1, ..., Y_n$, $y_1, ..., y_n$, $n$, $\lambda$, $\alpha$, and $\beta$.  
+
+
+Known, Var $> 0$: $Y_1, ..., Y_n$
+
+Known, Var $= 0$: $y_1, ..., y_n$, $n$, $\alpha$, and $\beta$
+
+Unknown, Var $> 0$:
+
+Unknown, Var $= 0$: $\lambda$
+
+
+
+# Extra Credit.
+Compute $p(Y_i \mid \alpha, \beta) = \int p(Y_i, \lambda_i \mid \alpha, \beta) d\lambda_i$.  _Hint:_ The gamma function is defined as $\Gamma ( z ) = \int _ { 0 } ^ { \infty } x ^ { z - 1 } e ^ { - x } d x$. 
+
+_Type your answer here, replacing this text._
+
+Fill in the blank.
+
+You just showed that a Gamma mixture of Poisson distributions is a _______.  
+
+
